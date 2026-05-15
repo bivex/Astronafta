@@ -1,0 +1,1 @@
+"""Smell detection infrastructure adapters."""

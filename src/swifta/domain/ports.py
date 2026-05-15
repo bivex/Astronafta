@@ -9,6 +9,7 @@ from typing import Sequence
 from swifta.domain.control_flow import StructureDiagram
 from swifta.domain.events import DomainEvent
 from swifta.domain.model import GrammarVersion, ParseOutcome, ParsingJob, SourceUnit
+from swifta.domain.smells import SmellReport
 
 
 class SourceRepository(ABC):
@@ -59,4 +60,10 @@ class DomainEventPublisher(ABC):
 class Clock(ABC):
     @abstractmethod
     def now(self) -> datetime:
+        raise NotImplementedError
+
+
+class AstroSmellDetector(ABC):
+    @abstractmethod
+    def detect(self, source_unit: SourceUnit) -> SmellReport:
         raise NotImplementedError

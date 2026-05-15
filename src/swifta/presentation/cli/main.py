@@ -16,12 +16,18 @@ from swifta.application.control_flow import (
     StructDiagramService,
 )
 from swifta.application.dto import ParseDirectoryCommand, ParseFileCommand, ParsingJobReportDTO
+from swifta.application.smells import (
+    DetectDirectorySmellsCommand,
+    DetectSmellsCommand,
+    SmellDetectionService,
+)
 from swifta.application.use_cases import ParsingJobService
 from swifta.domain.errors import SwiftaError
 from swifta.infrastructure.antlr.control_flow_extractor import AntlrAstroStructureExtractor
 from swifta.infrastructure.antlr.parser_adapter import AntlrAstroSyntaxParser
 from swifta.infrastructure.filesystem.source_repository import FileSystemSourceRepository
 from swifta.infrastructure.rendering.struct_html_renderer import HtmlStructureDiagramRenderer
+from swifta.infrastructure.smells.diagram_smell_detector import StructureDiagramSmellDetector
 from swifta.infrastructure.system import (
     InMemoryParsingJobRepository,
     StructuredLoggingEventPublisher,
@@ -80,6 +86,18 @@ def main(argv: list[str] | None = None) -> int:
             ]
             print(json.dumps(payload, indent=2))
             return 0
+        elif args.command == "smell-file":
+            report = _build_smell_service().detect_file_smells(
+                DetectSmellsCommand(path=args.path)
+            )
+            print(json.dumps(report.to_dict(), indent=2))
+            return 1 if report.warning_count > 0 else 0
+        elif args.command == "smell-dir":
+            bundle = _build_smell_service().detect_directory_smells(
+                DetectDirectorySmellsCommand(root_path=args.path)
+            )
+            print(json.dumps(bundle.to_dict(), indent=2))
+            return 1 if bundle.total_warnings > 0 else 0
         else:
             parser.error(f"unsupported command: {args.command}")
     except SwiftaError as error:
@@ -120,6 +138,18 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         "--out",
         help="Output directory. Defaults to <input>.struct-html/.",
     )
+
+    smell_file = subparsers.add_parser(
+        "smell-file",
+        help="Detect code smells in one Astro file.",
+    )
+    smell_file.add_argument("path", help="Path to a .astro file.")
+
+    smell_dir = subparsers.add_parser(
+        "smell-dir",
+        help="Detect code smells in all Astro files in a directory.",
+    )
+    smell_dir.add_argument("path", help="Path to a directory.")
     return parser
 
 
@@ -138,6 +168,14 @@ def _build_struct_service() -> StructDiagramService:
         source_repository=FileSystemSourceRepository(),
         extractor=AntlrAstroStructureExtractor(),
         renderer=HtmlStructureDiagramRenderer(),
+    )
+
+
+def _build_smell_service() -> SmellDetectionService:
+    extractor = AntlrAstroStructureExtractor()
+    return SmellDetectionService(
+        source_repository=FileSystemSourceRepository(),
+        detector=StructureDiagramSmellDetector(extractor=extractor),
     )
 
 
