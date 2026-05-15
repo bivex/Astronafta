@@ -63,6 +63,16 @@ uv run swifta struct-file path/to/page.astro --out output/page.struct.html
 uv run swifta struct-dir path/to/astro-project/src --out output/struct-bundle
 ```
 
+## Screenshots
+
+**Structure diagram** — component hierarchy for an Astro page with nested HTML elements and component tags:
+
+![Structure diagram](docs/screenshots/struct_diagram.png)
+
+**Directory index** — overview of all parsed `.astro` files with component counts:
+
+![Directory index](docs/screenshots/struct_index.png)
+
 ## Architecture
 
 The codebase is split into four explicit layers:
@@ -88,7 +98,7 @@ src/swifta/
 │   ├── filesystem/
 │   │   └── source_repository.py       # .astro file discovery
 │   └── rendering/
-│       └── nassi_html_renderer.py     # HTML tree diagram renderer
+│       └── struct_html_renderer.py    # HTML tree diagram renderer
 └── presentation/
     └── cli/
         └── main.py           # Typer CLI
