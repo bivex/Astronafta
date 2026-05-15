@@ -22,6 +22,13 @@ class CodeSmellKind(StrEnum):
     SCRIPT_IN_COMPONENT = "script-in-component"
     DUPLICATE_COMPONENT_NAMES = "duplicate-component-names"
     EMPTY_COMPONENT = "empty-component"
+    CLIENT_DIRECTIVE_OVERUSE = "client-directive-overuse"
+    MISSING_CLIENT_DIRECTIVE = "missing-client-directive"
+    ENV_IN_CLIENT_COMPONENT = "env-in-client-component"
+    UNUSED_IMPORT = "unused-import"
+    IMAGE_WITHOUT_DIMENSIONS = "image-without-dimensions"
+    HARDCODED_BASE_URL = "hardcoded-base-url"
+    EXCESSIVE_GLOBAL_STYLES = "excessive-global-styles"
 
 
 @dataclass(frozen=True, slots=True)

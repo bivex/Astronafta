@@ -29,12 +29,24 @@ class SmellThresholds:
     max_props: int = 8
     max_components: int = 10
     max_expressions: int = 20
+    max_client_load: int = 3
 
 
 _ATTR_PATTERN = re.compile(
     r'\b[a-zA-Z_][\w-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|\{[^}]*\}))?\b'
 )
 _INLINE_STYLE_PATTERN = re.compile(r'\bstyle\s*=\s*["\']')
+_CLIENT_LOAD_PATTERN = re.compile(r'\bclient:load\b')
+_CLIENT_ANY_PATTERN = re.compile(r'\bclient:\w+')
+_HARDCODED_URL_PATTERN = re.compile(r'https?://localhost[:/]')
+_GLOBAL_STYLE_PATTERN = re.compile(r'is:global')
+_ENV_SECRET_PATTERN = re.compile(r'import\.meta\.env\.\w*SECRET\w*', re.IGNORECASE)
+_IMPORT_PATTERN = re.compile(
+    r'import\s+(?:(?:\w+\s*,?\s*)*\{[^}]*\}|\w+)\s+from\s+["\']([^"\']+)["\']'
+)
+_DEFAULT_IMPORT_PATTERN = re.compile(r'import\s+(\w+)\s+from\s+["\']([^"\']+)["\']')
+_FRAMEWORK_EXTENSIONS = ('.tsx', '.jsx', '.vue', '.svelte')
+_IMG_TAG = 'img'
 
 
 class StructureDiagramSmellDetector(AstroSmellDetector):
@@ -50,6 +62,7 @@ class StructureDiagramSmellDetector(AstroSmellDetector):
         diagram = self._extractor.extract(source_unit)
         smells: list[CodeSmell] = []
         smells.extend(self._check_file_level(diagram))
+        smells.extend(self._check_source_level(source_unit.content, diagram))
         for component in diagram.components:
             smells.extend(self._check_component(component))
         return SmellReport(
@@ -97,6 +110,151 @@ class StructureDiagramSmellDetector(AstroSmellDetector):
             ))
 
         return smells
+
+    def _check_source_level(
+        self, source_content: str, diagram: StructureDiagram,
+    ) -> list[CodeSmell]:
+        smells: list[CodeSmell] = []
+        frontmatter = _extract_frontmatter(source_content)
+
+        smells.extend(self._check_client_directive_overuse(diagram))
+        smells.extend(self._check_missing_client_directive(frontmatter, diagram))
+        smells.extend(self._check_unused_imports(frontmatter, diagram))
+        smells.extend(self._check_env_in_client_component(diagram))
+        smells.extend(self._check_hardcoded_base_url(source_content, diagram))
+        smells.extend(self._check_excessive_global_styles(source_content, diagram))
+
+        return smells
+
+    def _check_client_directive_overuse(
+        self, diagram: StructureDiagram,
+    ) -> list[CodeSmell]:
+        client_load_count = 0
+        for comp in diagram.components:
+            if _CLIENT_LOAD_PATTERN.search(comp.signature):
+                client_load_count += 1
+            client_load_count += _count_in_tree(comp.steps, _has_client_load)
+
+        if client_load_count > self._thresholds.max_client_load:
+            return [CodeSmell(
+                kind=CodeSmellKind.CLIENT_DIRECTIVE_OVERUSE,
+                severity=SmellSeverity.WARNING,
+                message=f"File has {client_load_count} client:load directives "
+                        f"(threshold: {self._thresholds.max_client_load}). "
+                        f"Consider client:idle or client:visible.",
+                line=None,
+                context="file",
+            )]
+        return []
+
+    def _check_missing_client_directive(
+        self, frontmatter: str, diagram: StructureDiagram,
+    ) -> list[CodeSmell]:
+        framework_imports = _extract_framework_import_names(frontmatter)
+        if not framework_imports:
+            return []
+
+        used_names = set()
+        for comp in diagram.components:
+            used_names.add(comp.name)
+            _collect_component_names(comp.steps, used_names)
+
+        smells: list[CodeSmell] = []
+        client_components = set()
+        for comp in diagram.components:
+            if _CLIENT_ANY_PATTERN.search(comp.signature):
+                client_components.add(comp.name)
+            if _has_client_directive_in_tree(comp.steps):
+                client_components.add(comp.name)
+
+        for name in framework_imports & used_names:
+            if name not in client_components:
+                smells.append(CodeSmell(
+                    kind=CodeSmellKind.MISSING_CLIENT_DIRECTIVE,
+                    severity=SmellSeverity.WARNING,
+                    message=f"Framework component '<{name}>' used without client:* directive "
+                            f"— will render as static HTML only",
+                    line=None,
+                    context=name,
+                ))
+        return smells
+
+    def _check_unused_imports(
+        self, frontmatter: str, diagram: StructureDiagram,
+    ) -> list[CodeSmell]:
+        import_names = _extract_all_import_names(frontmatter)
+        if not import_names:
+            return []
+
+        used_names: set[str] = set()
+        for comp in diagram.components:
+            used_names.add(comp.name)
+            _collect_component_names(comp.steps, used_names)
+
+        smells: list[CodeSmell] = []
+        for name in sorted(import_names - used_names):
+            smells.append(CodeSmell(
+                kind=CodeSmellKind.UNUSED_IMPORT,
+                severity=SmellSeverity.INFO,
+                message=f"Component '{name}' imported but not used in template",
+                line=None,
+                context=name,
+            ))
+        return smells
+
+    def _check_env_in_client_component(
+        self, diagram: StructureDiagram,
+    ) -> list[CodeSmell]:
+        smells: list[CodeSmell] = []
+        for comp in diagram.components:
+            has_client = _CLIENT_ANY_PATTERN.search(comp.signature) or \
+                         _has_client_directive_in_tree(comp.steps)
+            if not has_client:
+                continue
+            env_matches = _collect_env_secrets(comp.steps)
+            if env_matches:
+                smells.append(CodeSmell(
+                    kind=CodeSmellKind.ENV_IN_CLIENT_COMPONENT,
+                    severity=SmellSeverity.WARNING,
+                    message=f"Secret env variable(s) {', '.join(env_matches)} "
+                            f"used in client component '<{comp.name}>' — "
+                            f"exposed to browser",
+                    line=None,
+                    context=comp.name,
+                ))
+        return smells
+
+    def _check_hardcoded_base_url(
+        self, source_content: str, diagram: StructureDiagram,
+    ) -> list[CodeSmell]:
+        matches = _HARDCODED_URL_PATTERN.findall(source_content)
+        if not matches:
+            return []
+        return [CodeSmell(
+            kind=CodeSmellKind.HARDCODED_BASE_URL,
+            severity=SmellSeverity.WARNING,
+            message=f"Hardcoded localhost URL found — will break in production",
+            line=None,
+            context="file",
+        )]
+
+    def _check_excessive_global_styles(
+        self, source_content: str, diagram: StructureDiagram,
+    ) -> list[CodeSmell]:
+        if not _GLOBAL_STYLE_PATTERN.search(source_content):
+            return []
+        # Only warn if not in a layout file
+        loc = diagram.source_location.lower()
+        if 'layout' in loc:
+            return []
+        return [CodeSmell(
+            kind=CodeSmellKind.EXCESSIVE_GLOBAL_STYLES,
+            severity=SmellSeverity.INFO,
+            message="Global styles (<style is:global>) in non-layout component "
+                    "break style isolation",
+            line=None,
+            context="file",
+        )]
 
     def _check_component(self, comp: ComponentStructure) -> list[CodeSmell]:
         smells: list[CodeSmell] = []
@@ -193,6 +351,16 @@ class StructureDiagramSmellDetector(AstroSmellDetector):
                 context=f"{parent_name}/<{step.tag}>",
             ))
 
+        if isinstance(step, ElementStep) and step.tag.lower() == _IMG_TAG:
+            if not _has_img_dimensions(attrs):
+                smells.append(CodeSmell(
+                    kind=CodeSmellKind.IMAGE_WITHOUT_DIMENSIONS,
+                    severity=SmellSeverity.WARNING,
+                    message=f"<img> without width/height causes CLS",
+                    line=None,
+                    context=f"{parent_name}/<{step.tag}>",
+                ))
+
         if isinstance(step, (ElementStep, ComponentStep, FragmentStep)):
             for child in step.children:
                 if isinstance(child, ScriptStep):
@@ -245,3 +413,83 @@ def _count_attributes(attrs: str) -> int:
     if not attrs or not attrs.strip():
         return 0
     return len(_ATTR_PATTERN.findall(attrs))
+
+
+def _extract_frontmatter(source: str) -> str:
+    if not source.startswith('---'):
+        return ""
+    end = source.find('---', 3)
+    if end == -1:
+        return ""
+    return source[3:end]
+
+
+def _extract_framework_import_names(frontmatter: str) -> set[str]:
+    names: set[str] = set()
+    for match in _DEFAULT_IMPORT_PATTERN.finditer(frontmatter):
+        name, path = match.group(1), match.group(2)
+        if any(path.endswith(ext) for ext in _FRAMEWORK_EXTENSIONS):
+            names.add(name)
+    return names
+
+
+def _extract_all_import_names(frontmatter: str) -> set[str]:
+    names: set[str] = set()
+    for match in _DEFAULT_IMPORT_PATTERN.finditer(frontmatter):
+        names.add(match.group(1))
+    return names
+
+
+def _has_client_load(step: TemplateStep) -> bool:
+    if isinstance(step, ComponentStep):
+        return bool(_CLIENT_LOAD_PATTERN.search(step.attributes))
+    return False
+
+
+def _has_client_directive_in_tree(steps: tuple[TemplateStep, ...]) -> bool:
+    for step in steps:
+        if isinstance(step, ComponentStep):
+            if _CLIENT_ANY_PATTERN.search(step.attributes):
+                return True
+        if isinstance(step, (ElementStep, ComponentStep, FragmentStep)):
+            if _has_client_directive_in_tree(step.children):
+                return True
+    return False
+
+
+def _collect_component_names(
+    steps: tuple[TemplateStep, ...], out: set[str],
+) -> None:
+    for step in steps:
+        if isinstance(step, ComponentStep):
+            out.add(step.name)
+        if isinstance(step, (ElementStep, ComponentStep, FragmentStep)):
+            _collect_component_names(step.children, out)
+
+
+def _collect_env_secrets(steps: tuple[TemplateStep, ...]) -> list[str]:
+    found: list[str] = []
+    for step in steps:
+        if isinstance(step, ExpressionStep):
+            for m in _ENV_SECRET_PATTERN.finditer(step.content):
+                found.append(m.group(0))
+        if isinstance(step, (ElementStep, ComponentStep, FragmentStep)):
+            found.extend(_collect_env_secrets(step.children))
+    return found
+
+
+def _count_in_tree(
+    steps: tuple[TemplateStep, ...],
+    predicate: callable,
+) -> int:
+    count = 0
+    for step in steps:
+        if predicate(step):
+            count += 1
+        if isinstance(step, (ElementStep, ComponentStep, FragmentStep)):
+            count += _count_in_tree(step.children, predicate)
+    return count
+
+
+def _has_img_dimensions(attrs: str) -> bool:
+    return bool(re.search(r'\bwidth\b', attrs)) and bool(re.search(r'\bheight\b', attrs))

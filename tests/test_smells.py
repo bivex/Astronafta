@@ -55,6 +55,8 @@ def _detect_source(content: str, thresholds: SmellThresholds | None = None) -> l
     return [smell.kind for smell in report.smells]
 
 
+# --- Structural smells ---
+
 def test_empty_component_detected() -> None:
     kinds = _detect_source("---\n---\n<Layout></Layout>")
     assert CodeSmellKind.EMPTY_COMPONENT in kinds
@@ -107,6 +109,113 @@ def test_large_component_detected() -> None:
     )
     assert CodeSmellKind.LARGE_COMPONENT in kinds
 
+
+# --- Astro-specific smells ---
+
+def test_client_directive_overuse_detected() -> None:
+    kinds = _detect_source(
+        "---\n---\n"
+        "<Widget client:load />\n"
+        "<Chart client:load />\n"
+        "<Map client:load />\n"
+        "<Modal client:load />",
+        thresholds=SmellThresholds(max_client_load=3),
+    )
+    assert CodeSmellKind.CLIENT_DIRECTIVE_OVERUSE in kinds
+
+
+def test_no_client_overuse_under_threshold() -> None:
+    kinds = _detect_source(
+        "---\n---\n<Widget client:load />\n<Chart client:load />",
+        thresholds=SmellThresholds(max_client_load=3),
+    )
+    assert CodeSmellKind.CLIENT_DIRECTIVE_OVERUSE not in kinds
+
+
+def test_missing_client_directive_detected() -> None:
+    kinds = _detect_source(
+        '---\nimport Counter from "./Counter.tsx"\n---\n<Counter />'
+    )
+    assert CodeSmellKind.MISSING_CLIENT_DIRECTIVE in kinds
+
+
+def test_no_missing_client_when_directive_present() -> None:
+    kinds = _detect_source(
+        '---\nimport Counter from "./Counter.tsx"\n---\n<Counter client:load />'
+    )
+    assert CodeSmellKind.MISSING_CLIENT_DIRECTIVE not in kinds
+
+
+def test_unused_import_detected() -> None:
+    kinds = _detect_source(
+        '---\nimport Header from "./Header.astro"\n---\n<Layout>content</Layout>'
+    )
+    assert CodeSmellKind.UNUSED_IMPORT in kinds
+
+
+def test_no_unused_import_when_used() -> None:
+    kinds = _detect_source(
+        '---\nimport Header from "./Header.astro"\n---\n<Header />'
+    )
+    assert CodeSmellKind.UNUSED_IMPORT not in kinds
+
+
+def test_image_without_dimensions_detected() -> None:
+    kinds = _detect_source(
+        '---\n---\n<Layout><img src="photo.jpg" alt="photo" /></Layout>'
+    )
+    assert CodeSmellKind.IMAGE_WITHOUT_DIMENSIONS in kinds
+
+
+def test_image_with_dimensions_not_flagged() -> None:
+    kinds = _detect_source(
+        '---\n---\n<Layout><img src="photo.jpg" width="800" height="600" /></Layout>'
+    )
+    assert CodeSmellKind.IMAGE_WITHOUT_DIMENSIONS not in kinds
+
+
+def test_hardcoded_base_url_detected() -> None:
+    kinds = _detect_source(
+        '---\n---\n<Layout><a href="http://localhost:4321/api">API</a></Layout>'
+    )
+    assert CodeSmellKind.HARDCODED_BASE_URL in kinds
+
+
+def test_env_in_client_component_detected() -> None:
+    kinds = _detect_source(
+        '---\n---\n<Widget client:load>{import.meta.env.SECRET_KEY}</Widget>'
+    )
+    assert CodeSmellKind.ENV_IN_CLIENT_COMPONENT in kinds
+
+
+def test_no_env_warning_without_secret() -> None:
+    kinds = _detect_source(
+        '---\n---\n<Widget client:load>{import.meta.env.PUBLIC_API_URL}</Widget>'
+    )
+    assert CodeSmellKind.ENV_IN_CLIENT_COMPONENT not in kinds
+
+
+def test_excessive_global_styles_detected() -> None:
+    kinds = _detect_source(
+        '---\n---\n<Component><style is:global>p { color: red; }</style></Component>'
+    )
+    assert CodeSmellKind.EXCESSIVE_GLOBAL_STYLES in kinds
+
+
+def test_global_styles_ok_in_layout() -> None:
+    extractor = AntlrAstroStructureExtractor()
+    detector = StructureDiagramSmellDetector(extractor=extractor)
+    source = SourceUnit(
+        identifier=SourceUnitId("test"),
+        location="src/layouts/Layout.astro",
+        content="---\n---\n<style is:global>p { color: red; }</style>",
+    )
+    report = detector.detect(source)
+    kinds = [s.kind for s in report.smells]
+    assert CodeSmellKind.EXCESSIVE_GLOBAL_STYLES not in kinds
+
+
+# --- Integration tests ---
 
 def test_smell_service_detects_file() -> None:
     service = _build_service()
