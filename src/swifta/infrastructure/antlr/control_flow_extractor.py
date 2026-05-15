@@ -48,6 +48,7 @@ def _build_structure_visitor(visitor_base: type) -> type:
 
         def visitComponentElement(self, ctx):
             open_tag = ctx.componentOpenTag() or ctx.componentSelfCloseTag()
+            is_self_closing = ctx.componentSelfCloseTag() is not None
             name = open_tag.componentTagName().getText() if open_tag else "Component"
             attrs = _attrs_from_tag(open_tag)
             container = ".".join(self._containers) if self._containers else None
@@ -56,10 +57,11 @@ def _build_structure_visitor(visitor_base: type) -> type:
             if ctx.template() is not None:
                 children = self._collect_template(ctx.template())
 
+            close = " />" if is_self_closing else ">"
             self.components.append(
                 ComponentStructure(
                     name=name,
-                    signature=f"<{name}{attrs}>",
+                    signature=f"<{name}{attrs}{close}",
                     container=container,
                     steps=children,
                 )

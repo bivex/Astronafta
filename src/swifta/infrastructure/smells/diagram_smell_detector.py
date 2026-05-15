@@ -271,7 +271,7 @@ class StructureDiagramSmellDetector(AstroSmellDetector):
                 context=name,
             ))
 
-        if not comp.steps:
+        if not comp.steps and not comp.signature.endswith("/>"):
             smells.append(CodeSmell(
                 kind=CodeSmellKind.EMPTY_COMPONENT,
                 severity=SmellSeverity.INFO,
