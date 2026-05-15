@@ -63,6 +63,101 @@ uv run swifta struct-file path/to/page.astro --out output/page.struct.html
 uv run swifta struct-dir path/to/astro-project/src --out output/struct-bundle
 ```
 
+## Code Smells
+
+Swifta can detect common Astro code smells and anti-patterns in your templates:
+
+### Detect smells in a single file:
+
+```bash
+uv run swifta smell-file src/components/hero.astro
+```
+
+### Detect smells in an entire directory:
+
+```bash
+uv run swifta smell-dir src/
+```
+
+### Output format
+
+Results are returned as JSON with detailed information:
+
+```json
+{
+  "root_path": "src/",
+  "file_count": 23,
+  "total_smells": 29,
+  "total_warnings": 26,
+  "reports": [
+    {
+      "source_location": "src/components/hero.astro",
+      "smell_count": 3,
+      "warning_count": 2,
+      "info_count": 1,
+      "smells": [
+        {
+          "kind": "duplicate-component-names",
+          "severity": "warning",
+          "message": "Component 'Icon' appears 2 times",
+          "line": null,
+          "context": "Icon"
+        },
+        {
+          "kind": "unused-import",
+          "severity": "info",
+          "message": "Component 'heroImage' imported but not used in template",
+          "line": null,
+          "context": "heroImage"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Detected smell types
+
+| Smell | Severity | Description |
+|-------|----------|-------------|
+| `deep-nesting` | ⚠️ Warning | Elements nested >6 levels deep |
+| `too-many-children` | ⚠️ Warning | Parent element with >10 direct children |
+| `large-component` | ⚠️ Warning | Component with >100 lines of code |
+| `too-many-props` | ⚠️ Warning | HTML element with >8 attributes |
+| `too-many-components` | ⚠️ Warning | File imports >10 different components |
+| `too-many-expressions` | ⚠️ Warning | >15 template expressions in one file |
+| `inline-style` | ⚠️ Warning | Inline `style` attributes found |
+| `script-in-component` | ⚠️ Warning | `<script>` tag without `is:inline` in component |
+| `duplicate-component-names` | ⚠️ Warning | Same component imported multiple times |
+| `empty-component` | ⚠️ Warning | Component with no content or children |
+| `client-directive-overuse` | ⚠️ Warning | >30% of elements have `client:*` directives |
+| `missing-client-directive` | ⚠️ Warning | Interactive element without `client:*` directive |
+| `env-in-client-component` | ⚠️ Warning | `Import.meta.env` used in client-side component |
+| `unused-import` | ℹ️ Info | Imported component never used in template |
+| `image-without-dimensions` | ℹ️ Info | `<img>` without explicit width/height |
+| `hardcoded-base-url` | ℹ️ Info | Hardcoded `/` base path instead of `import.meta.env.BASE_URL` |
+| `excessive-global-styles` | ℹ️ Info | Global CSS rules that may cause conflicts |
+
+### Exit codes
+
+- `0` — No warnings found (clean)
+- `1` — Warnings detected (non-zero for CI/CD)
+- `2` — Technical failure (parser error, file not found)
+
+### Filtering output
+
+Extract only files with warnings:
+
+```bash
+uv run swifta smell-dir src/ | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for report in data['reports']:
+    if report['warning_count'] > 0:
+        print(f\"{report['source_location']}: {report['warning_count']} warnings\")
+"
+```
+
 ## Screenshots
 
 **Structure diagram** — component hierarchy for an Astro page with nested HTML elements and component tags:
