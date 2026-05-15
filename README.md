@@ -1,92 +1,29 @@
 # Swifta
 
-Swifta is a simple, scalable monolith for parsing Swift source code through ANTLR while keeping the architecture clean enough for future semantic analysis, indexing, and export pipelines.
+Swifta is a hexagonal Astro template parser built on top of ANTLR. It parses `.astro` files and produces a structural model of components, HTML elements, expressions, scripts, and styles — rendered as interactive HTML tree diagrams.
 
 The project starts from the domain, not from the framework:
 
-* business goal: convert Swift source into a stable structural model for downstream tooling
-* architectural style: DDD-inspired layered monolith with hexagonal boundaries
-* parser engine: ANTLR4 with the public Swift 5 grammar from `antlr/grammars-v4`, plus a reproducible Python-compatibility patch step
-* current delivery channel: CLI that parses a file or a directory and returns versioned JSON
+* **business goal**: convert Astro source into a stable structural model for downstream tooling
+* **architectural style**: DDD-inspired layered monolith with hexagonal boundaries
+* **parser engine**: ANTLR4 with a custom Astro grammar (lexer modes for frontmatter, tags, expressions, scripts, and styles)
+* **delivery channel**: CLI that parses a file or directory and outputs HTML structure diagrams
 
 ## What the system does
 
-Today the system supports:
+* **Parsing Astro templates**
+  * parse a single `.astro` file
+  * parse a directory of `.astro` files recursively
+  * extract a structural model: frontmatter, HTML elements, components (PascalCase tags), fragments, template expressions, scripts, and styles
 
-* **Parsing Swift code**
-  * parsing one Swift file
-  * parsing a directory of Swift files
-  * extracting a lightweight structural model: imports, type declarations, functions, variables, and extensions
-  * reporting syntax diagnostics as part of the contract
-
-* **Control flow extraction**
-  * if/else statements with nested branches
-  * guard statements
-  * while loops
-  * for-in loops
-  * repeat-while loops
-  * switch/case statements
-  * do-catch blocks
-  * defer blocks
-  * trailing closure expansion (`.map{}`, `.forEach{}`, `.reduce{}`)
-
-* **Nassi-Shneiderman diagrams**
-  * building a Nassi-Shneiderman HTML diagram for one Swift file
-  * building diagram bundles for entire directories with index page
-  * classic NS rendering with SVG triangles for if-blocks
-  * depth-coded nested ifs (up to 50 levels with color cycling and Unicode badges ①-㊿)
-  * classic case block structure with side-by-side columns
-  * dark Tokyo Night-inspired theme with JetBrains Mono font
-  * proper text wrapping and responsive layout
+* **Structure diagrams**
+  * build an HTML tree diagram for a single `.astro` file showing the full component hierarchy
+  * build diagram bundles for entire directories with an index page linking all files
+  * color-coded node types: HTML tags (blue), components (green), expressions (purple), text (muted), scripts (orange), styles (teal), fragments (blue)
+  * dark theme with JetBrains Mono and IBM Plex Sans fonts
 
 * **Architecture**
-  * keeping parser infrastructure behind ports so the application layer stays independent from ANTLR, filesystem, and CLI details
-
-## Diagram Features
-
-The Nassi-Shneiderman diagrams include:
-
-* **Visual clarity**
-  * Classic NS triangles for if-blocks with Yes/No labels
-  * Horizontal dividers for case blocks with side-by-side columns
-  * Color-coded block types (loops=blue, guards=orange, switches=teal, etc.)
-  * JetBrains Mono monospace font for code readability
-
-* **Depth awareness**
-  * 50 depth levels with cycling colors (blue → green → purple → teal → amber)
-  * Unicode circled badges (①-⑩, ⑪-⑳, ㉑-㉟, ㊱-㊿) on nested conditionals
-  * Background tinting for deeper nesting levels
-
-* **Dark theme**
-  * Tokyo Night-inspired color palette optimized for code readability
-  * Proper contrast ratios for comfortable viewing
-  - Responsive layout for different screen sizes
-
-* **Smart parsing**
-  * Trailing closure expansion for functional chains
-  * Autoreleasepool unwrapping for Objective-C interop
-  * Fast path for simple function bodies
-
-### Screenshots
-
-**Basic control flow** — loops, guards, and switch/case blocks:
-
-![Basic NS diagram](docs/screenshots/nassi_diagram.png)
-
-**Nested conditionals** — depth-coded badges and colors for up to 50 nesting levels:
-
-![Nested depth diagram](docs/screenshots/nested_depth.png)
-
-## Architecture
-
-The codebase is split into four explicit layers:
-
-* `domain`: domain model, invariants, ports, and domain events
-* `application`: use cases and DTOs
-* `infrastructure`: ANTLR adapter, filesystem adapters, event publishing
-* `presentation`: CLI contract
-
-See the full design docs in [docs/domain-and-goals.md](/Volumes/External/Code/Swifta/docs/domain-and-goals.md), [docs/requirements.md](/Volumes/External/Code/Swifta/docs/requirements.md), [docs/system-context.md](/Volumes/External/Code/Swifta/docs/system-context.md), [docs/glossary.md](/Volumes/External/Code/Swifta/docs/glossary.md), and [docs/architecture.md](/Volumes/External/Code/Swifta/docs/architecture.md).
+  * parser infrastructure behind ports so the application layer stays independent from ANTLR, filesystem, and CLI details
 
 ## Quick Start
 
@@ -96,48 +33,87 @@ See the full design docs in [docs/domain-and-goals.md](/Volumes/External/Code/Sw
 uv sync --extra dev
 ```
 
-2. Generate the Swift parser from the vendored grammar:
+2. Generate the ANTLR parser from the vendored grammar:
 
 ```bash
-uv run python scripts/generate_swift_parser.py
+uv run python scripts/generate_astro_parser.py
 ```
 
 3. Parse a single file:
 
 ```bash
-uv run swifta parse-file path/to/File.swift
+uv run swifta parse-file path/to/page.astro
 ```
 
 4. Parse a directory:
 
 ```bash
-uv run swifta parse-dir path/to/project
+uv run swifta parse-dir path/to/astro-project/src
 ```
 
-5. Build a Nassi-Shneiderman diagram for a Swift file:
+5. Build a structure diagram for a single file:
 
 ```bash
-uv run swifta nassi-file path/to/Algorithms.swift --out output/algorithms.nassi.html
+uv run swifta nassi-file path/to/page.astro --out output/page.nassi.html
 ```
 
-6. Build Nassi-Shneiderman diagrams for an entire directory:
+6. Build structure diagrams for an entire directory:
 
 ```bash
-uv run swifta nassi-dir path/to/project --out output/nassi-bundle
+uv run swifta nassi-dir path/to/astro-project/src --out output/struct-bundle
 ```
 
-## Constraints and honesty
+## Architecture
 
-The current ANTLR grammar is sourced from `antlr/grammars-v4/swift/swift5`. Its own README states that it targets Swift 5.4 syntax, is not fully aligned with the Swift compiler, and has known ambiguities. The upstream grammar also needs a compatibility patch step for Python target generation because the original grammar ships with Java-oriented support code and embedded actions. Swifta makes those limitations explicit in requirements, ADRs, and runtime metadata so downstream consumers know what contract they are integrating with.
+The codebase is split into four explicit layers:
+
+* `domain`: domain model, control flow types, ports, and domain events
+* `application`: use cases and DTOs
+* `infrastructure`: ANTLR adapter, filesystem adapters, HTML rendering
+* `presentation`: CLI contract
+
+```
+src/swifta/
+├── domain/
+│   ├── model.py              # StructuralElementKind, SourceUnit
+│   ├── control_flow.py       # TemplateStep types, StructureDiagram
+│   └── ports.py              # AstroSyntaxParser, AstroStructureExtractor, NassiDiagramRenderer
+├── application/
+│   └── control_flow.py       # Use case: parse & render
+├── infrastructure/
+│   ├── antlr/
+│   │   ├── runtime.py        # ANTLR loader and parse helpers
+│   │   ├── parser_adapter.py # AntlrAstroSyntaxParser
+│   │   └── control_flow_extractor.py  # AntlrAstroStructureExtractor
+│   ├── filesystem/
+│   │   └── source_repository.py       # .astro file discovery
+│   └── rendering/
+│       └── nassi_html_renderer.py     # HTML tree diagram renderer
+└── presentation/
+    └── cli/
+        └── main.py           # Typer CLI
+```
+
+## Grammar
+
+The Astro grammar lives in `resources/grammars/astro/` as a git submodule. The lexer uses seven modes:
+
+| Mode | Purpose |
+|---|---|
+| `DEFAULT` | Top-level template content |
+| `FRONTMATTER` | Content between `---` delimiters |
+| `TAG` | Inside HTML/component tag attributes |
+| `EXPR` | Template expressions `{...}` |
+| `SCRIPT` | `<script>` block content |
+| `STYLE` | `<style>` block content |
 
 ## Next Steps
 
 Useful future extensions:
 
-* richer control flow visualization (async/await, actors, SwiftUI)
-* symbol graph export
-* semantic passes on top of the structural model
-* integration adapters for external analysis tools
-* incremental parsing and caching
+* component prop type extraction from frontmatter
+* component dependency graph visualization
+* unused component detection
 * interactive HTML diagrams with collapsible nodes
-* export to other diagram formats (SVG, PNG, Mermaid)
+* export to other formats (SVG, Mermaid)
+* integration with Astro dev server as a plugin
