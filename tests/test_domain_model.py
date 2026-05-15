@@ -20,9 +20,9 @@ def test_parsing_job_requires_at_least_one_source_unit() -> None:
 
 def test_parsing_job_tracks_outcomes() -> None:
     source_unit = SourceUnit(
-        identifier=SourceUnitId("/tmp/example.swift"),
-        location="/tmp/example.swift",
-        content="struct Example {}",
+        identifier=SourceUnitId("/tmp/example.astro"),
+        location="/tmp/example.astro",
+        content="<h1>Hello</h1>",
     )
     job = ParsingJob(
         job_id="job-1",

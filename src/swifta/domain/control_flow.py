@@ -1,4 +1,4 @@
-"""Domain model for structured control flow diagrams."""
+"""Domain model for Astro template structure."""
 
 from __future__ import annotations
 
@@ -6,81 +6,55 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True, slots=True)
-class ControlFlowStep:
-    """Base type for a structured control flow step."""
+class TemplateStep:
+    """Base type for a template structure step."""
 
 
 @dataclass(frozen=True, slots=True)
-class ActionFlowStep(ControlFlowStep):
-    label: str
+class ElementStep(TemplateStep):
+    tag: str
+    attributes: str
+    children: tuple[TemplateStep, ...]
 
 
 @dataclass(frozen=True, slots=True)
-class IfFlowStep(ControlFlowStep):
-    condition: str
-    then_steps: tuple[ControlFlowStep, ...]
-    else_steps: tuple[ControlFlowStep, ...]
+class ComponentStep(TemplateStep):
+    name: str
+    attributes: str
+    children: tuple[TemplateStep, ...]
 
 
 @dataclass(frozen=True, slots=True)
-class GuardFlowStep(ControlFlowStep):
-    condition: str
-    else_steps: tuple[ControlFlowStep, ...]
+class ExpressionStep(TemplateStep):
+    content: str
 
 
 @dataclass(frozen=True, slots=True)
-class WhileFlowStep(ControlFlowStep):
-    condition: str
-    body_steps: tuple[ControlFlowStep, ...]
+class TextStep(TemplateStep):
+    content: str
 
 
 @dataclass(frozen=True, slots=True)
-class ForInFlowStep(ControlFlowStep):
-    header: str
-    body_steps: tuple[ControlFlowStep, ...]
+class ScriptStep(TemplateStep):
+    content: str
 
 
 @dataclass(frozen=True, slots=True)
-class RepeatWhileFlowStep(ControlFlowStep):
-    condition: str
-    body_steps: tuple[ControlFlowStep, ...]
+class StyleStep(TemplateStep):
+    content: str
 
 
 @dataclass(frozen=True, slots=True)
-class SwitchCaseFlow:
-    label: str
-    steps: tuple[ControlFlowStep, ...]
+class FragmentStep(TemplateStep):
+    children: tuple[TemplateStep, ...]
 
 
 @dataclass(frozen=True, slots=True)
-class SwitchFlowStep(ControlFlowStep):
-    expression: str
-    cases: tuple[SwitchCaseFlow, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class CatchClauseFlow:
-    pattern: str
-    steps: tuple[ControlFlowStep, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class DoCatchFlowStep(ControlFlowStep):
-    body_steps: tuple[ControlFlowStep, ...]
-    catches: tuple[CatchClauseFlow, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class DeferFlowStep(ControlFlowStep):
-    body_steps: tuple[ControlFlowStep, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class FunctionControlFlow:
+class ComponentStructure:
     name: str
     signature: str
     container: str | None
-    steps: tuple[ControlFlowStep, ...]
+    steps: tuple[TemplateStep, ...]
 
     @property
     def qualified_name(self) -> str:
@@ -90,7 +64,6 @@ class FunctionControlFlow:
 
 
 @dataclass(frozen=True, slots=True)
-class ControlFlowDiagram:
+class StructureDiagram:
     source_location: str
-    functions: tuple[FunctionControlFlow, ...]
-
+    components: tuple[ComponentStructure, ...]

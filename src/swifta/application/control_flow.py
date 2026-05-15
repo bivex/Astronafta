@@ -1,11 +1,11 @@
-"""Use cases for structured control flow diagrams."""
+"""Use cases for structured template diagrams."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 
-from swifta.domain.ports import NassiDiagramRenderer, SourceRepository, SwiftControlFlowExtractor
+from swifta.domain.ports import AstroStructureExtractor, NassiDiagramRenderer, SourceRepository
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,15 +21,15 @@ class BuildNassiDirectoryCommand:
 @dataclass(frozen=True, slots=True)
 class NassiDiagramDocumentDTO:
     source_location: str
-    function_count: int
-    function_names: tuple[str, ...]
+    component_count: int
+    component_names: tuple[str, ...]
     html: str
 
     def to_dict(self) -> dict[str, object]:
         return {
             "source_location": self.source_location,
-            "function_count": self.function_count,
-            "function_names": list(self.function_names),
+            "component_count": self.component_count,
+            "component_names": list(self.component_names),
         }
 
 
@@ -50,7 +50,7 @@ class NassiDiagramBundleDTO:
 @dataclass(slots=True)
 class NassiDiagramService:
     source_repository: SourceRepository
-    extractor: SwiftControlFlowExtractor
+    extractor: AstroStructureExtractor
     renderer: NassiDiagramRenderer
 
     def build_file_diagram(self, command: BuildNassiDiagramCommand) -> NassiDiagramDocumentDTO:
@@ -58,7 +58,7 @@ class NassiDiagramService:
         return self._build_document(source_unit)
 
     def build_directory_diagrams(self, command: BuildNassiDirectoryCommand) -> NassiDiagramBundleDTO:
-        source_units = tuple(self.source_repository.list_swift_sources(command.root_path))
+        source_units = tuple(self.source_repository.list_astro_sources(command.root_path))
         documents = tuple(self._build_document(source_unit) for source_unit in source_units)
         return NassiDiagramBundleDTO(
             root_path=str(Path(command.root_path).expanduser().resolve()),
@@ -70,7 +70,7 @@ class NassiDiagramService:
         diagram = self.extractor.extract(source_unit)
         return NassiDiagramDocumentDTO(
             source_location=diagram.source_location,
-            function_count=len(diagram.functions),
-            function_names=tuple(function.qualified_name for function in diagram.functions),
+            component_count=len(diagram.components),
+            component_names=tuple(comp.qualified_name for comp in diagram.components),
             html=self.renderer.render(diagram),
         )

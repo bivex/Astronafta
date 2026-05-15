@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Sequence
 
-from swifta.domain.control_flow import ControlFlowDiagram
+from swifta.domain.control_flow import StructureDiagram
 from swifta.domain.events import DomainEvent
 from swifta.domain.model import GrammarVersion, ParseOutcome, ParsingJob, SourceUnit
 
@@ -17,7 +17,7 @@ class SourceRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def list_swift_sources(self, root_path: str) -> Sequence[SourceUnit]:
+    def list_astro_sources(self, root_path: str) -> Sequence[SourceUnit]:
         raise NotImplementedError
 
 
@@ -27,7 +27,7 @@ class ParsingJobRepository(ABC):
         raise NotImplementedError
 
 
-class SwiftSyntaxParser(ABC):
+class AstroSyntaxParser(ABC):
     @property
     @abstractmethod
     def grammar_version(self) -> GrammarVersion:
@@ -38,15 +38,15 @@ class SwiftSyntaxParser(ABC):
         raise NotImplementedError
 
 
-class SwiftControlFlowExtractor(ABC):
+class AstroStructureExtractor(ABC):
     @abstractmethod
-    def extract(self, source_unit: SourceUnit) -> ControlFlowDiagram:
+    def extract(self, source_unit: SourceUnit) -> StructureDiagram:
         raise NotImplementedError
 
 
 class NassiDiagramRenderer(ABC):
     @abstractmethod
-    def render(self, diagram: ControlFlowDiagram) -> str:
+    def render(self, diagram: StructureDiagram) -> str:
         raise NotImplementedError
 
 

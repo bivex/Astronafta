@@ -27,16 +27,15 @@ class ParseStatus(StrEnum):
 
 
 class StructuralElementKind(StrEnum):
-    IMPORT = "import"
-    TYPE_ALIAS = "type_alias"
-    CONSTANT = "constant"
-    VARIABLE = "variable"
-    FUNCTION = "function"
-    ENUM = "enum"
-    STRUCT = "struct"
-    CLASS = "class"
-    PROTOCOL = "protocol"
-    EXTENSION = "extension"
+    FRONTMATTER = "frontmatter"
+    HTML_ELEMENT = "html_element"
+    COMPONENT = "component"
+    FRAGMENT = "fragment"
+    SCRIPT_BLOCK = "script_block"
+    STYLE_BLOCK = "style_block"
+    TEMPLATE_EXPR = "template_expr"
+    TEXT = "text"
+    ATTRIBUTE = "attribute"
 
 
 @dataclass(frozen=True, slots=True)
