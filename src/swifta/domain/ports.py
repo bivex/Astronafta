@@ -44,7 +44,7 @@ class AstroStructureExtractor(ABC):
         raise NotImplementedError
 
 
-class NassiDiagramRenderer(ABC):
+class StructureDiagramRenderer(ABC):
     @abstractmethod
     def render(self, diagram: StructureDiagram) -> str:
         raise NotImplementedError

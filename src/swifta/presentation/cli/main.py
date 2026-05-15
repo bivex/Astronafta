@@ -10,10 +10,10 @@ from html import escape
 from pathlib import Path
 
 from swifta.application.control_flow import (
-    BuildNassiDiagramCommand,
-    BuildNassiDirectoryCommand,
-    NassiDiagramBundleDTO,
-    NassiDiagramService,
+    BuildStructDiagramCommand,
+    BuildStructDirectoryCommand,
+    StructDiagramBundleDTO,
+    StructDiagramService,
 )
 from swifta.application.dto import ParseDirectoryCommand, ParseFileCommand, ParsingJobReportDTO
 from swifta.application.use_cases import ParsingJobService
@@ -21,7 +21,7 @@ from swifta.domain.errors import SwiftaError
 from swifta.infrastructure.antlr.control_flow_extractor import AntlrAstroStructureExtractor
 from swifta.infrastructure.antlr.parser_adapter import AntlrAstroSyntaxParser
 from swifta.infrastructure.filesystem.source_repository import FileSystemSourceRepository
-from swifta.infrastructure.rendering.nassi_html_renderer import HtmlNassiDiagramRenderer
+from swifta.infrastructure.rendering.struct_html_renderer import HtmlStructureDiagramRenderer
 from swifta.infrastructure.system import (
     InMemoryParsingJobRepository,
     StructuredLoggingEventPublisher,
@@ -41,9 +41,9 @@ def main(argv: list[str] | None = None) -> int:
             report = _build_parse_service().parse_file(ParseFileCommand(path=args.path))
         elif args.command == "parse-dir":
             report = _build_parse_service().parse_directory(ParseDirectoryCommand(root_path=args.path))
-        elif args.command == "nassi-file":
-            document = _build_nassi_service().build_file_diagram(
-                BuildNassiDiagramCommand(path=args.path)
+        elif args.command == "struct-file":
+            document = _build_struct_service().build_file_diagram(
+                BuildStructDiagramCommand(path=args.path)
             )
             output_path = _resolve_output_path(args.path, args.out)
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -53,9 +53,9 @@ def main(argv: list[str] | None = None) -> int:
             payload["output_path"] = str(output_path)
             print(json.dumps(payload, indent=2))
             return 0
-        elif args.command == "nassi-dir":
-            bundle = _build_nassi_service().build_directory_diagrams(
-                BuildNassiDirectoryCommand(root_path=args.path)
+        elif args.command == "struct-dir":
+            bundle = _build_struct_service().build_directory_diagrams(
+                BuildStructDirectoryCommand(root_path=args.path)
             )
             output_dir = _resolve_output_directory(args.path, args.out)
             written_diagrams = _write_directory_diagrams(bundle, output_dir)
@@ -101,24 +101,24 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     parse_dir = subparsers.add_parser("parse-dir", help="Parse all Astro files in a directory.")
     parse_dir.add_argument("path", help="Path to a directory.")
 
-    nassi_file = subparsers.add_parser(
-        "nassi-file",
+    struct_file = subparsers.add_parser(
+        "struct-file",
         help="Build a structure HTML diagram for one Astro file.",
     )
-    nassi_file.add_argument("path", help="Path to a .astro file.")
-    nassi_file.add_argument(
+    struct_file.add_argument("path", help="Path to a .astro file.")
+    struct_file.add_argument(
         "--out",
-        help="Output HTML path. Defaults to <input>.nassi.html.",
+        help="Output HTML path. Defaults to <input>.struct.html.",
     )
 
-    nassi_dir = subparsers.add_parser(
-        "nassi-dir",
+    struct_dir = subparsers.add_parser(
+        "struct-dir",
         help="Build structure HTML diagrams for all Astro files in a directory.",
     )
-    nassi_dir.add_argument("path", help="Path to a directory.")
-    nassi_dir.add_argument(
+    struct_dir.add_argument("path", help="Path to a directory.")
+    struct_dir.add_argument(
         "--out",
-        help="Output directory. Defaults to <input>.nassi/.",
+        help="Output directory. Defaults to <input>.struct-html/.",
     )
     return parser
 
@@ -133,11 +133,11 @@ def _build_parse_service() -> ParsingJobService:
     )
 
 
-def _build_nassi_service() -> NassiDiagramService:
-    return NassiDiagramService(
+def _build_struct_service() -> StructDiagramService:
+    return StructDiagramService(
         source_repository=FileSystemSourceRepository(),
         extractor=AntlrAstroStructureExtractor(),
-        renderer=HtmlNassiDiagramRenderer(),
+        renderer=HtmlStructureDiagramRenderer(),
     )
 
 
@@ -152,7 +152,7 @@ def _resolve_output_path(input_path: str, explicit_output_path: str | None) -> P
         return Path(explicit_output_path).expanduser().resolve()
 
     resolved_input = Path(input_path).expanduser().resolve()
-    return resolved_input.with_suffix(".nassi.html")
+    return resolved_input.with_suffix(".struct.html")
 
 
 def _resolve_output_directory(input_path: str, explicit_output_path: str | None) -> Path:
@@ -160,11 +160,11 @@ def _resolve_output_directory(input_path: str, explicit_output_path: str | None)
         return Path(explicit_output_path).expanduser().resolve()
 
     resolved_input = Path(input_path).expanduser().resolve()
-    return resolved_input.with_name(f"{resolved_input.name}.nassi")
+    return resolved_input.with_name(f"{resolved_input.name}.struct-html")
 
 
 @dataclass(frozen=True, slots=True)
-class _WrittenNassiDiagram:
+class _WrittenStructDiagram:
     source_location: str
     component_count: int
     component_names: tuple[str, ...]
@@ -174,21 +174,21 @@ class _WrittenNassiDiagram:
 
 
 def _write_directory_diagrams(
-    bundle: NassiDiagramBundleDTO,
+    bundle: StructDiagramBundleDTO,
     output_dir: Path,
-) -> tuple[_WrittenNassiDiagram, ...]:
+) -> tuple[_WrittenStructDiagram, ...]:
     root_path = Path(bundle.root_path)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    written_diagrams: list[_WrittenNassiDiagram] = []
+    written_diagrams: list[_WrittenStructDiagram] = []
     for document in bundle.documents:
         source_path = Path(document.source_location)
         relative_source_path = source_path.relative_to(root_path)
-        output_path = (output_dir / relative_source_path).with_suffix(".nassi.html")
+        output_path = (output_dir / relative_source_path).with_suffix(".struct.html")
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(document.html, encoding="utf-8")
         written_diagrams.append(
-            _WrittenNassiDiagram(
+            _WrittenStructDiagram(
                 source_location=document.source_location,
                 component_count=document.component_count,
                 component_names=document.component_names,
@@ -202,7 +202,7 @@ def _write_directory_diagrams(
 
 def _render_directory_index(
     root_path: str,
-    written_diagrams: tuple[_WrittenNassiDiagram, ...],
+    written_diagrams: tuple[_WrittenStructDiagram, ...],
 ) -> str:
     rows = "".join(
         (

@@ -4,9 +4,9 @@ import sys
 from pathlib import Path
 
 from swifta.application.control_flow import (
-    BuildNassiDiagramCommand,
-    BuildNassiDirectoryCommand,
-    NassiDiagramService,
+    BuildStructDiagramCommand,
+    BuildStructDirectoryCommand,
+    StructDiagramService,
 )
 from swifta.domain.control_flow import (
     ComponentStructure,
@@ -15,7 +15,7 @@ from swifta.domain.control_flow import (
 from swifta.domain.model import SourceUnit, SourceUnitId
 from swifta.infrastructure.antlr.control_flow_extractor import AntlrAstroStructureExtractor
 from swifta.infrastructure.filesystem.source_repository import FileSystemSourceRepository
-from swifta.infrastructure.rendering.nassi_html_renderer import HtmlNassiDiagramRenderer
+from swifta.infrastructure.rendering.struct_html_renderer import HtmlStructureDiagramRenderer
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,19 +34,19 @@ def _ensure_generated_parser() -> None:
     )
 
 
-def _build_service() -> NassiDiagramService:
+def _build_service() -> StructDiagramService:
     _ensure_generated_parser()
-    return NassiDiagramService(
+    return StructDiagramService(
         source_repository=FileSystemSourceRepository(),
         extractor=AntlrAstroStructureExtractor(),
-        renderer=HtmlNassiDiagramRenderer(),
+        renderer=HtmlStructureDiagramRenderer(),
     )
 
 
-def test_nassi_service_builds_html_document() -> None:
+def test_struct_service_builds_html_document() -> None:
     service = _build_service()
     document = service.build_file_diagram(
-        BuildNassiDiagramCommand(path=str(ROOT / "tests" / "fixtures" / "components.astro"))
+        BuildStructDiagramCommand(path=str(ROOT / "tests" / "fixtures" / "components.astro"))
     )
 
     assert document.component_count >= 1
@@ -54,10 +54,10 @@ def test_nassi_service_builds_html_document() -> None:
     assert "Astro" in document.html
 
 
-def test_nassi_service_builds_directory_bundle() -> None:
+def test_struct_service_builds_directory_bundle() -> None:
     service = _build_service()
     bundle = service.build_directory_diagrams(
-        BuildNassiDirectoryCommand(root_path=str(ROOT / "tests" / "fixtures"))
+        BuildStructDirectoryCommand(root_path=str(ROOT / "tests" / "fixtures"))
     )
 
     assert bundle.document_count >= 2
@@ -86,7 +86,7 @@ title: Test
     assert "Layout" in names
 
 
-def test_nassi_cli_writes_html_file(tmp_path: Path) -> None:
+def test_struct_cli_writes_html_file(tmp_path: Path) -> None:
     _ensure_generated_parser()
     output_path = tmp_path / "components.html"
 
@@ -95,7 +95,7 @@ def test_nassi_cli_writes_html_file(tmp_path: Path) -> None:
             sys.executable,
             "-m",
             "swifta.presentation.cli.main",
-            "nassi-file",
+            "struct-file",
             str(ROOT / "tests" / "fixtures" / "components.astro"),
             "--out",
             str(output_path),
@@ -113,16 +113,16 @@ def test_nassi_cli_writes_html_file(tmp_path: Path) -> None:
     assert "Astro Structure Viewer" in output_path.read_text(encoding="utf-8")
 
 
-def test_nassi_dir_cli_writes_html_bundle(tmp_path: Path) -> None:
+def test_struct_dir_cli_writes_html_bundle(tmp_path: Path) -> None:
     _ensure_generated_parser()
-    output_dir = tmp_path / "nassi-bundle"
+    output_dir = tmp_path / "struct-bundle"
 
     result = subprocess.run(
         [
             sys.executable,
             "-m",
             "swifta.presentation.cli.main",
-            "nassi-dir",
+            "struct-dir",
             str(ROOT / "tests" / "fixtures"),
             "--out",
             str(output_dir),
@@ -141,7 +141,7 @@ def test_nassi_dir_cli_writes_html_bundle(tmp_path: Path) -> None:
 
 
 def test_renderer_produces_html() -> None:
-    renderer = HtmlNassiDiagramRenderer()
+    renderer = HtmlStructureDiagramRenderer()
     diagram = StructureDiagram(
         source_location="test.astro",
         components=(

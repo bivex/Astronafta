@@ -54,13 +54,13 @@ uv run swifta parse-dir path/to/astro-project/src
 5. Build a structure diagram for a single file:
 
 ```bash
-uv run swifta nassi-file path/to/page.astro --out output/page.nassi.html
+uv run swifta struct-file path/to/page.astro --out output/page.struct.html
 ```
 
 6. Build structure diagrams for an entire directory:
 
 ```bash
-uv run swifta nassi-dir path/to/astro-project/src --out output/struct-bundle
+uv run swifta struct-dir path/to/astro-project/src --out output/struct-bundle
 ```
 
 ## Architecture

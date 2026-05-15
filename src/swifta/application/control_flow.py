@@ -5,21 +5,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from swifta.domain.ports import AstroStructureExtractor, NassiDiagramRenderer, SourceRepository
+from swifta.domain.ports import AstroStructureExtractor, StructureDiagramRenderer, SourceRepository
 
 
 @dataclass(frozen=True, slots=True)
-class BuildNassiDiagramCommand:
+class BuildStructDiagramCommand:
     path: str
 
 
 @dataclass(frozen=True, slots=True)
-class BuildNassiDirectoryCommand:
+class BuildStructDirectoryCommand:
     root_path: str
 
 
 @dataclass(frozen=True, slots=True)
-class NassiDiagramDocumentDTO:
+class StructDiagramDocumentDTO:
     source_location: str
     component_count: int
     component_names: tuple[str, ...]
@@ -34,10 +34,10 @@ class NassiDiagramDocumentDTO:
 
 
 @dataclass(frozen=True, slots=True)
-class NassiDiagramBundleDTO:
+class StructDiagramBundleDTO:
     root_path: str
     document_count: int
-    documents: tuple[NassiDiagramDocumentDTO, ...]
+    documents: tuple[StructDiagramDocumentDTO, ...]
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -48,27 +48,27 @@ class NassiDiagramBundleDTO:
 
 
 @dataclass(slots=True)
-class NassiDiagramService:
+class StructDiagramService:
     source_repository: SourceRepository
     extractor: AstroStructureExtractor
-    renderer: NassiDiagramRenderer
+    renderer: StructureDiagramRenderer
 
-    def build_file_diagram(self, command: BuildNassiDiagramCommand) -> NassiDiagramDocumentDTO:
+    def build_file_diagram(self, command: BuildStructDiagramCommand) -> StructDiagramDocumentDTO:
         source_unit = self.source_repository.load_file(command.path)
         return self._build_document(source_unit)
 
-    def build_directory_diagrams(self, command: BuildNassiDirectoryCommand) -> NassiDiagramBundleDTO:
+    def build_directory_diagrams(self, command: BuildStructDirectoryCommand) -> StructDiagramBundleDTO:
         source_units = tuple(self.source_repository.list_astro_sources(command.root_path))
         documents = tuple(self._build_document(source_unit) for source_unit in source_units)
-        return NassiDiagramBundleDTO(
+        return StructDiagramBundleDTO(
             root_path=str(Path(command.root_path).expanduser().resolve()),
             document_count=len(documents),
             documents=documents,
         )
 
-    def _build_document(self, source_unit) -> NassiDiagramDocumentDTO:
+    def _build_document(self, source_unit) -> StructDiagramDocumentDTO:
         diagram = self.extractor.extract(source_unit)
-        return NassiDiagramDocumentDTO(
+        return StructDiagramDocumentDTO(
             source_location=diagram.source_location,
             component_count=len(diagram.components),
             component_names=tuple(comp.qualified_name for comp in diagram.components),

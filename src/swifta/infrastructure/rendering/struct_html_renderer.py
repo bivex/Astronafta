@@ -16,10 +16,10 @@ from swifta.domain.control_flow import (
     TextStep,
     ScriptStep,
 )
-from swifta.domain.ports import NassiDiagramRenderer
+from swifta.domain.ports import StructureDiagramRenderer
 
 
-class HtmlNassiDiagramRenderer(NassiDiagramRenderer):
+class HtmlStructureDiagramRenderer(StructureDiagramRenderer):
     def render(self, diagram: StructureDiagram) -> str:
         sections = "".join(self._render_component(comp) for comp in diagram.components)
         if not sections:
